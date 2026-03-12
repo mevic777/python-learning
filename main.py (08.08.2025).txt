@@ -1,0 +1,152 @@
+THIS IS THE VERSION BEFORE USING THE ORM, HERE ARE A LOT OF COMMENTS THAT MIGHT BE USEFULL FOR THE FUTURE
+
+
+from typing import Optional
+from fastapi import FastAPI, Response, status, HTTPException
+
+# Body - we use in order to extract data from our json/api
+from fastapi.params import Body
+
+# BaseModel - we use this module for Schemas, in order to validate,
+# structure that we get from the API
+from pydantic import BaseModel
+from random import randrange
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import time
+
+app = FastAPI()
+
+
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool
+
+
+while True:
+
+    try:
+        # it is not right to hardcode the information in the database connection so fix it in the future
+        connection = psycopg2.connect(
+            host='localhost', database='fastapi', user='postgres', password='marius333', cursor_factory=RealDictCursor)
+        cursor = connection.cursor()
+        break
+    except Exception as error:
+        print(f"Database connection error: {error}")
+        time.sleep(3)
+
+
+# my_posts = [{"id": 1, "title": "title of post 1",
+#              "content": "content of post 1"}, {"id": 2, "title": "title of post 2",
+#                                                "content": "content of post 2"}]
+
+
+# def find_post(id):
+#     for p in my_posts:
+#         if p['id'] == id:
+#             return p
+
+
+# def find_index_post(id):
+#     for i, p in enumerate(my_posts):
+#         if p['id'] == id:
+#             return i
+
+
+@app.get("/")
+def root():
+    return {"message": "welcome to my api"}
+
+
+@app.get("/posts")
+def get_posts():
+    cursor.execute(
+        """SELECT * FROM POSTS;""")  # this is for sql command
+    posts = cursor.fetchall()  # this is to run it to the database and retrieving the data
+    return {"data": posts}
+
+
+# (payload: dict = Body(...)) -> we extracted data from the json we got from
+# from accessing the url /create_post -> def create_post(payload: dict = Body(...)):
+# ---------------------------
+# because our model is defined like in our json file
+# we structured and validated the data we received -> def create_post(new_post: Post):
+
+# status_code=status.HTTP_201_CREATED -> we are changing the default status code of
+# path, so it's better for front end to understand what is happening
+
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_post(post: Post):
+    # post_dict = post.dict()
+    # post_dict['id'] = randrange(0, 1000000000)
+    # my_posts.append(post_dict)
+
+    # cursor.execute(
+    #     f"""INSERT INTO POSTS(TITLE, CONTENT, PUBLISHED) VALUES({post.title}, {post.content}, {post.published})""")
+
+    # this is very vulnerable to sql injection, so we better use the next:
+
+    cursor.execute("""INSERT INTO POSTS(TITLE, CONTENT, PUBLISHED) VALUES(%s, %s, %s) RETURNING *;""",
+                   (post.title, post.content, post.publised))
+    new_post = cursor.fetchone()
+
+    connection.commit()
+    return {"post": new_post}
+
+
+# {id} -> it is a path parameter and even if it is a number
+# it will be returned as a string, so do id: int or post = find_post(int(id))
+@app.get("/posts/{id}")
+def get_post(id: int):
+    cursor.execute(
+        """SELECT * FROM POSTS WHERE ID = %s;""", str(id))
+    post = cursor.fetchone()
+
+    if not post:
+        # ONE WAY TO DO IT
+        # response.status_code = status.HTTP_404_NOT_FOUND
+        # return {"message": f"Post with {id} not found"}
+
+        # BETTER WAY TO DO IT
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Post with {id} not found")
+
+    return {"post": post}
+
+
+@app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int):
+    # index = find_index_post(id)
+
+    cursor.execute("""DELETE FROM POSTS WHERE ID = %s RETURNING *;""", str(id))
+    post = cursor.fetchone()
+    connection.commit()
+
+    if post == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"There is not such post {id}")
+
+    # my_posts.pop(index)
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.put("/posts/{id}")
+def update_post(id: int, post: Post):
+    # index = find_index_post(id)
+
+    cursor.execute("""UPDATE POSTS SET TITLE = %s, CONTENT = %s, PUBLISHED = %s WHERE ID = %s RETURNING *;""",
+                   (post.title, post.content, post.published, str(id)))
+    edited_post = cursor.fetchone()
+    connection.commit()
+
+    if edited_post == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"There is not such post {id}")
+
+    # post_dict = post.dict()
+    # post_dict['id'] = id
+    # my_posts[index] = post_dict
+
+    return {"data": edited_post}

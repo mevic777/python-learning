@@ -1,0 +1,10 @@
+ci - continuos integration, automated process to build, package and test the app
+cd - continuos delivery, picks up where the ci end and automated the delivery of app
+
+the tools ci/cd - provides us a runner (computer, virtual machine) to run a bunch of commands we specify
+
+these commands are either usually configured in yaml/json file or through a gui
+
+the different steps, commands we provide makeup all of the actions our pipeline will perform
+
+the pipeline will be triggered based off of some even (git push/merge)

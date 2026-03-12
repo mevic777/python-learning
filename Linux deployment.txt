@@ -1,0 +1,98 @@
+ssh user@ipaddress -> ssh root@164.90.182.86
+
+to upgrade and install all the packages on a new virtual machine, we need to use
+	sudo apt upgrade && sudo apt update -y
+
+to install any app or software we could use -> sudo apt install python3 / pip3
+	sudo pip3 install virtualenv
+	sudo apt install postgresql postgresql-contrib -y
+
+in order to connect to the database (postgres) -> psql -U postgres
+
+if we run this commmand it will give an error, because we will be connected as the user from linux kernel
+so we have to create the user for psql
+
+to see all users created on a linux machine -> sudo cat /etc/passwd
+
+to change the user -> su - postgres -> like that we changed the user to the user for connecting to the database
+
+in order to set a password -> \password [user] -> \password postgres
+
+to get rid of the peer authentication that we needed to do, we need to go:
+	cd etc/postgresql/[version]17/main
+	sudo vi postgresql.conf
+	go to CONNECTIONS AND AUTHENTICATION
+	and we need to add the next line of code: listen_addresses = '*' -> * for all the ip addresses
+
+	sudo vi pg_hba.conf -> and change the method of connection from peer to md5
+			       and addresses as well from 127.0.0.1/32 -> 0.0.0.0/0
+			       and ::1/28 to ::/0
+
+to restart and make the changes we need to run -> systemctl restart postgresql [application]
+
+in order to add user -> adduser [username] -> adduser marius
+
+to change user -> su - marius
+
+in order to give a user root priveleges -> usermod -aG sudo marius
+
+pwd -> offer the directory you are in
+
+cd ~ -> directs you to the home directory
+
+virtualenv venv -> to create and virtual environment
+in order to activate it -> source venv/bin/activate
+to deactivate it just type -> deactivate
+
+
+in order to create an env variable -> export MY_NAME=Marius
+to show all env variables -> printenv
+
+to unset it -> just type unset MY_NAME
+
+to create a file -> touch .env
+
+to enter just -> vi .env
+
+after we set everything for example: export MY_NAME=MARIUS
+			             export MY_PASS=1234
+	to set them we do -> source .env
+	this is not convenient, so we could do next
+
+vi .env -> paste / write all the env you need and run this command -> set -o allexport; source /home/marius/.env; 
+								      set +o allexport
+	if we reboot, all our env varibles will be lost
+	in order not to lose it we need to do the next thing -> go to .profile file from home directory
+								and after the last line just paste this command:
+									set -o allexport; source /home/marius/.env; set +o allexport
+
+because we have alembic -> we could just run -> alembic upgrade head
+
+in order to run our app -> uvicorn --host 0.0.0.0 app.main:app
+
+but we will work with gunicorn -> pip install gunicorn, also install httptools and uvloop
+
+we can set how many workers we want, depends on the server of course:
+	gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:8000
+
+if you want to see all the different processes we started we just type:
+	ps -aef | grep -i gunicorn
+
+to make our own service we need to go to /etc/systemd/system and create a couple of files
+	gunicorn.service
+
+we have to connect to nginx -> sudo apt install nginx -y
+we have to start the nginx service -> systemctl start nginx
+after we have to modify "default" file we go to /etc/nginx/sites-available/ -> vi default
+restart the service -> systemctl restart nginx
+
+then we need to set the ssl protocol:
+	sudo snap install --classic certbot
+	sudo certbot --nginx
+add the domains and that's it
+
+
+to set the firewall we need to run the next command, in order to allow some ip addresses or all
+the ip addresses -> sudo ufw allow http
+
+to see all logs just write -> sudo tail -f /var/log/nginx/access.log

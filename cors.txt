@@ -1,0 +1,4 @@
+CORS - Cross Orginin Resource Sharing
+
+allows us to make requests from a web browser on one domain to a server on a different domain
+by default our API will only allow browsers running on the same domain as our server to make request to it

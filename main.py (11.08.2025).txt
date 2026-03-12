@@ -1,0 +1,160 @@
+BEFORE THE USER FUNCTIONALITY (LOGIN, LOGOUT)
+
+
+# import time
+# import psycopg2
+from fastapi import FastAPI, Response, status, HTTPException, Depends
+# from psycopg2.extras import RealDictCursor
+from . import models
+from .database import engine, get_db
+from sqlalchemy.orm import Session
+from .schemas import PostCreate, Post
+from typing import List
+
+app = FastAPI()
+
+models.Base.metadata.create_all(bind=engine)
+
+'''
+    it helps us to shape the shape of our request
+    but out sqlalchemy models help us the shape of our database
+'''
+
+
+# while True:
+
+#     try:
+#         connection = psycopg2.connect(
+#             host='localhost', database='fastapi', user='postgres', password='marius333', cursor_factory=RealDictCursor)
+#         cursor = connection.cursor()
+#         break
+#     except Exception as error:
+#         print(f"Database connection error: {error}")
+#         time.sleep(3)
+
+
+@app.get("/")
+def root():
+    return {"message": "welcome to my api"}
+
+
+@app.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+
+    posts = db.query(models.Post).all()
+
+    return posts
+
+
+# we specify that we want a list of our posts
+@app.get("/posts", response_model=List[Post])
+def get_posts(db: Session = Depends(get_db)):
+    '''
+        all this code runs through our driver so we are talking directly with the database
+        we want to abstract from that so we are using an orm so it execute all the code
+        to our database and it is retrieving data we could work with
+        ********************************
+
+        cursor.execute(SELECT * FROM POSTS)
+        posts = cursor.fetchall()
+
+        ********************************
+    '''
+
+    # everytime we want to make some actions to our database we need to include it as a parameter to the function
+    # -> db: Session = Depends(get_db)
+
+    # grab every single entry from our table
+
+    posts = db.query(models.Post).all()
+    return posts
+
+
+# response_model=Post -> it is for our response to the user
+@app.post("/posts", status_code=status.HTTP_201_CREATED, response_model=Post)
+def create_post(post: PostCreate, db: Session = Depends(get_db)):
+    '''
+        CHECK CODE ABOVE get_posts() function
+        cursor.execute("""INSERT INTO POSTS(TITLE, CONTENT, PUBLISHED) VALUES(%s, %s, %s) RETURNING *;""",
+                    (post.title, post.content, post.publised))
+        new_post = cursor.fetchone()
+
+        connection.commit()
+    '''
+
+    '''
+        post.dict() -> make our validation class (BaseModel) a dictionary
+        **post.dict() -> is unpacking our dictionary so we could pass as many arguments as we want
+        so it makes it more efficient
+        models.Post(title=post.title, content=post.content, published=post.published) ~ models.Post(**post.dict())
+    '''
+    # new_post = models.Post(
+    #     title=post.title, content=post.content, published=post.published)
+    new_post = models.Post(**post.dict())
+
+    db.add(new_post)  # add the new entry to our database
+    db.commit()  # ~ to connection.commit()
+    db.refresh(new_post)  # ~ RETURNING *; from SQL
+
+    return new_post
+
+
+@app.get("/posts/{id}", response_model=Post)
+def get_post(id: int, db: Session = Depends(get_db)):
+    '''
+        CHECK ABOVE PREVIOUS COMMS
+
+        cursor.execute(
+            """SELECT * FROM POSTS WHERE ID = %s;""", str(id))
+        post = cursor.fetchone()
+    '''
+
+    # ~ to SELECT * FROM PRODUCTS WHERE ID = 1;
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Post with {id} not found")
+
+    return post
+
+
+@app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int, db: Session = Depends(get_db)):
+    '''
+        cursor.execute("""DELETE FROM POSTS WHERE ID = %s RETURNING *;""", str(id))
+        post = cursor.fetchone()
+        connection.commit()
+    '''
+
+    post = db.query(models.Post).filter(models.Post.id == id)
+
+    if post.first() == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"There is not such post {id}")
+
+    post.delete()
+    db.commit()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.put("/posts/{id}", response_model=Post)
+def update_post(id: int, post: PostCreate, db: Session = Depends(get_db)):
+    '''
+        cursor.execute("""UPDATE POSTS SET TITLE = %s, CONTENT = %s, PUBLISHED = %s WHERE ID = %s RETURNING *;""",
+                    (post.title, post.content, post.published, str(id)))
+        edited_post = cursor.fetchone()
+        connection.commit()
+    '''
+
+    update_post = db.query(models.Post).filter(models.Post.id == id)
+
+    if update_post.first() == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"There is not such post {id}")
+
+    update_post.update(post.dict())
+    db.commit()
+
+    update_post.first()
